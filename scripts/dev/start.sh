@@ -2,6 +2,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,20 +14,35 @@ echo -e "${CYAN}╔════════════════════�
 echo -e "${CYAN}║  hkai-workflow Studio — Dev Server        ║${NC}"
 echo -e "${CYAN}╚═══════════════════════════════════════════╝${NC}"
 
-# Step 1: Start infrastructure
+# Step 1: Start infrastructure (PostgreSQL + Redis via Homebrew)
 echo -e "\n${YELLOW}[1/4] Starting infrastructure...${NC}"
 bash "$SCRIPT_DIR/start-infra.sh"
 
 # Step 2: Run migrations
 echo -e "\n${YELLOW}[2/4] Running database migrations...${NC}"
-cd "$SCRIPT_DIR/../api"
-export FLASK_APP=app.py
-export DATABASE_URL="postgresql://postgres:***@localhost:5432/dify"
-export REDIS_URL="redis://:difyai123456@localhost:6379/0"
-source .venv/bin/activate 2>/dev/null || true
-flask upgrade-db 2>/dev/null && echo -e "${GREEN}✅ Migrations done${NC}" || echo -e "${YELLOW}⚠️  Migration skipped${NC}"
 
-# Step 3: Start all services in background
+PYTHON_BIN="${HKAI_PYTHON:-}"
+if [ -z "$PYTHON_BIN" ]; then
+  for p in ~/miniforge3/envs/dify/bin/python; do
+    if [ -x "$p" ]; then PYTHON_BIN="$p"; break; fi
+  done
+fi
+
+cd "$PROJECT_DIR/api"
+export FLASK_APP=app.py
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USERNAME=postgres
+export DB_PASSWORD=difyai...port DB_DATABASE=dify
+export REDIS_URL="redis://localhost:6379/0"
+export CELERY_BROKER_URL="$REDIS_URL"
+export STORAGE_TYPE=local
+export STORAGE_LOCAL_PATH="$PROJECT_DIR/storage"
+
+"$PYTHON_BIN" -m flask upgrade-db 2>&1 | tail -5
+echo -e "${GREEN}✅ Migrations done${NC}"
+
+# Step 3: Start all services
 echo -e "\n${YELLOW}[3/4] Starting services...${NC}"
 
 cleanup() {
@@ -34,38 +50,38 @@ cleanup() {
   kill $API_PID 2>/dev/null || true
   kill $WORKER_PID 2>/dev/null || true
   kill $WEB_PID 2>/dev/null || true
-  wait
+  wait 2>/dev/null
   echo -e "${GREEN}All services stopped.${NC}"
   exit 0
 }
-
 trap cleanup SIGINT SIGTERM
 
+mkdir -p "$PROJECT_DIR/storage"
+
 # Start API
-echo -e "  ${CYAN}▶ API:${NC}     http://localhost:5001"
+echo -e "  ${CYAN}▶ API:${NC}     http://localhost:${HKAI_API_PORT:-5001}"
 bash "$SCRIPT_DIR/start-api.sh" &
 API_PID=$!
-sleep 2
+sleep 3
 
-# Start Worker
-echo -e "  ${CYAN}▶ Worker:${NC}  Celery (background)"
-bash "$SCRIPT_DIR/start-worker.sh" &
-WORKER_PID=$!
-sleep 2
+# Start Worker (optional, comment out if not needed)
+# echo -e "  ${CYAN}▶ Worker:${NC}  Celery (background)"
+# bash "$SCRIPT_DIR/start-worker.sh" &
+# WORKER_PID=$!
 
 # Start Web
-echo -e "  ${CYAN}▶ Web:${NC}     http://localhost:3000"
+WEB_PORT="${HKAI_WEB_PORT:-3000}"
+echo -e "  ${CYAN}▶ Web:${NC}     http://localhost:$WEB_PORT"
 bash "$SCRIPT_DIR/start-web.sh" &
 WEB_PID=$!
 
 echo -e "\n${GREEN}╔═══════════════════════════════════════════╗${NC}"
 echo -e "${GREEN}║  All services running!                    ║${NC}"
 echo -e "${GREEN}║                                           ║${NC}"
-echo -e "${GREEN}║  Frontend: http://localhost:3000           ║${NC}"
-echo -e "${GREEN}║  API:      http://localhost:5001           ║${NC}"
+echo -e "${GREEN}║  Frontend: http://localhost:$WEB_PORT      ║${NC}"
+echo -e "${GREEN}║  API:      http://localhost:${HKAI_API_PORT:-5001}          ║${NC}"
 echo -e "${GREEN}║                                           ║${NC}"
 echo -e "${GREEN}║  Press Ctrl+C to stop all services        ║${NC}"
 echo -e "${GREEN}╚═══════════════════════════════════════════╝${NC}"
 
-# Wait for any process to exit
 wait
