@@ -22,7 +22,8 @@ export FLASK_APP=app.py
 export DB_HOST=localhost
 export DB_PORT=5432
 export DB_USERNAME=postgres
-export DB_PASSWORD=difyai...port DB_DATABASE=dify
+export DB_PASSWORD=***
+export DB_DATABASE=dify
 export REDIS_URL="redis://localhost:6379/0"
 export CELERY_BROKER_URL="$REDIS_URL"
 export STORAGE_TYPE=local
