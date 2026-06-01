@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import ActionButton from '@/app/components/base/action-button'
 import ViewFormDropdown from '@/app/components/base/chat/embedded-chatbot/inputs-form/view-form-dropdown'
 import Divider from '@/app/components/base/divider'
-import DifyLogo from '@/app/components/base/logo/dify-logo'
+import HkaiStudioLogo from '@/app/components/base/logo/dify-logo'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { isClient } from '@/utils/client'
 import {
@@ -101,7 +101,7 @@ const Header: FC<IHeaderProps> = ({
                     ? <img src={systemFeatures.branding.workspace_logo} alt="logo" className="block h-5 w-auto" />
                     : appData?.custom_config?.replace_webapp_logo
                       ? <img src={`${appData?.custom_config?.replace_webapp_logo}`} alt="logo" className="block h-5 w-auto" />
-                      : <DifyLogo size="small" />
+                      : <HkaiStudioLogo size="small" />
                 }
               </div>
             )}

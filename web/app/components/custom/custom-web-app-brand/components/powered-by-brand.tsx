@@ -1,4 +1,4 @@
-import DifyLogo from '@/app/components/base/logo/dify-logo'
+import HkaiStudioLogo from '@/app/components/base/logo/dify-logo'
 
 type PoweredByBrandProps = {
   webappBrandRemoved?: boolean
@@ -23,7 +23,7 @@ const PoweredByBrand = ({
       <div className="system-2xs-medium-uppercase text-text-tertiary">POWERED BY</div>
       {previewLogo
         ? <img src={previewLogo} alt="logo" className="block h-5 w-auto" />
-        : <DifyLogo size="small" />}
+        : <HkaiStudioLogo size="small" />}
     </>
   )
 }

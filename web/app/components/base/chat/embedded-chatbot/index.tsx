@@ -9,7 +9,7 @@ import { useTranslation } from 'react-i18next'
 import ChatWrapper from '@/app/components/base/chat/embedded-chatbot/chat-wrapper'
 import Header from '@/app/components/base/chat/embedded-chatbot/header'
 import Loading from '@/app/components/base/loading'
-import DifyLogo from '@/app/components/base/logo/dify-logo'
+import HkaiStudioLogo from '@/app/components/base/logo/dify-logo'
 import LogoHeader from '@/app/components/base/logo/logo-embedded-chat-header'
 import useBreakpoints, { MediaType } from '@/hooks/use-breakpoints'
 import useDocumentTitle from '@/hooks/use-document-title'
@@ -22,7 +22,7 @@ import {
 import { useEmbeddedChatbot } from './hooks'
 import { useThemeContext } from './theme/theme-context'
 import { CssTransform } from './theme/utils'
-import { isDify } from './utils'
+import { isDefaultBrand } from './utils'
 
 const Chatbot = () => {
   const {
@@ -61,7 +61,7 @@ const Chatbot = () => {
           isMobile={isMobile}
           allowResetChat={allowResetChat}
           title={site?.title || ''}
-          customerIcon={isDify() ? difyIcon : ''}
+          customerIcon={isDefaultBrand() ? difyIcon : ''}
           theme={themeBuilder?.theme}
           onCreateNewChat={handleNewConversation}
         />
@@ -88,7 +88,7 @@ const Chatbot = () => {
                   ? <img src={systemFeatures.branding.workspace_logo} alt="logo" className="block h-5 w-auto" />
                   : appData?.custom_config?.replace_webapp_logo
                     ? <img src={`${appData?.custom_config?.replace_webapp_logo}`} alt="logo" className="block h-5 w-auto" />
-                    : <DifyLogo size="small" />
+                    : <HkaiStudioLogo size="small" />
               }
             </div>
           )}

@@ -4,7 +4,7 @@ import { RiArrowRightUpLine, RiRobot2Line } from '@remixicon/react'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import DifyLogo from '@/app/components/base/logo/dify-logo'
+import HkaiStudioLogo from '@/app/components/base/logo/dify-logo'
 import Link from '@/next/link'
 import { useRouter } from '@/next/navigation'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
@@ -18,7 +18,7 @@ const Header = () => {
   const goToStudio = useCallback(() => {
     router.push('/apps')
   }, [router])
-  const logoLabel = systemFeatures.branding.enabled && systemFeatures.branding.application_title ? systemFeatures.branding.application_title : 'Dify'
+  const logoLabel = systemFeatures.branding.enabled && systemFeatures.branding.application_title ? systemFeatures.branding.application_title : 'hkai-workflow Studio'
 
   return (
     <div className="flex flex-1 items-center justify-between px-4">
@@ -36,7 +36,7 @@ const Header = () => {
                   alt=""
                 />
               )
-            : <DifyLogo alt="" />}
+            : <HkaiStudioLogo alt="" />}
         </Link>
         <div className="h-4 w-px origin-center rotate-[11.31deg] bg-divider-regular" />
         <p className="relative mt-[-2px] title-3xl-semi-bold text-text-primary">{t('account.account', { ns: 'common' })}</p>

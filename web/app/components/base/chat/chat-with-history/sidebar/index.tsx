@@ -20,7 +20,7 @@ import ActionButton from '@/app/components/base/action-button'
 import AppIcon from '@/app/components/base/app-icon'
 import List from '@/app/components/base/chat/chat-with-history/sidebar/list'
 import RenameModal from '@/app/components/base/chat/chat-with-history/sidebar/rename-modal'
-import DifyLogo from '@/app/components/base/logo/dify-logo'
+import HkaiStudioLogo from '@/app/components/base/logo/dify-logo'
 import MenuDropdown from '@/app/components/share/text-generation/menu-dropdown'
 import { systemFeaturesQueryOptions } from '@/service/system-features'
 import { useChatWithHistoryContext } from '../context'
@@ -165,7 +165,7 @@ const Sidebar = ({ isPanel }: Props) => {
                   ? <img src={systemFeatures.branding.workspace_logo} alt="logo" className="block h-5 w-auto" />
                   : appData?.custom_config?.replace_webapp_logo
                     ? <img src={`${appData?.custom_config?.replace_webapp_logo}`} alt="logo" className="block h-5 w-auto" />
-                    : <DifyLogo size="small" />
+                    : <HkaiStudioLogo size="small" />
               }
             </div>
           )}

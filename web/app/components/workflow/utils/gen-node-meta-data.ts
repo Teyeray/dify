@@ -20,7 +20,7 @@ export const genNodeMetaData = ({
   sort,
   type,
   title = '',
-  author = 'Dify',
+  author = 'hkai-workflow Studio',
   helpLinkUri,
   isRequired = false,
   isUndeletable = false,

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import useTheme from '@/hooks/use-theme'
 import { Theme } from '@/types/app'
-import DifyLogo from '../dify-logo'
+import HkaiStudioLogo from '../dify-logo'
 
 vi.mock('@/hooks/use-theme', () => ({
   default: vi.fn(),
@@ -27,7 +27,7 @@ describe('DifyLogo', () => {
 
   describe('Render', () => {
     it('renders correctly with default props', () => {
-      render(<DifyLogo />)
+      render(<HkaiStudioLogo />)
       const img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toBeInTheDocument()
       expect(img).toHaveAttribute('src', '/test-base-path/logo/logo.svg')
@@ -36,31 +36,31 @@ describe('DifyLogo', () => {
 
   describe('Props', () => {
     it('applies custom size correctly', () => {
-      const { rerender } = render(<DifyLogo size="large" />)
+      const { rerender } = render(<HkaiStudioLogo size="large" />)
       let img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toHaveClass('w-16')
       expect(img).toHaveClass('h-7')
 
-      rerender(<DifyLogo size="small" />)
+      rerender(<HkaiStudioLogo size="small" />)
       img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toHaveClass('w-9')
       expect(img).toHaveClass('h-4')
     })
 
     it('applies custom style correctly', () => {
-      render(<DifyLogo style="monochromeWhite" />)
+      render(<HkaiStudioLogo style="monochromeWhite" />)
       const img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toHaveAttribute('src', '/test-base-path/logo/logo-monochrome-white.svg')
     })
 
     it('applies custom className', () => {
-      render(<DifyLogo className="custom-test-class" />)
+      render(<HkaiStudioLogo className="custom-test-class" />)
       const img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toHaveClass('custom-test-class')
     })
 
     it('applies custom alt text', () => {
-      const { container } = render(<DifyLogo alt="" />)
+      const { container } = render(<HkaiStudioLogo alt="" />)
       const img = container.querySelector('img')
       expect(img).toHaveAttribute('alt', '')
     })
@@ -72,7 +72,7 @@ describe('DifyLogo', () => {
         ...mockUseTheme,
         theme: Theme.dark,
       } as ReturnType<typeof useTheme>)
-      render(<DifyLogo style="default" />)
+      render(<HkaiStudioLogo style="default" />)
       const img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toHaveAttribute('src', '/test-base-path/logo/logo-monochrome-white.svg')
     })
@@ -82,7 +82,7 @@ describe('DifyLogo', () => {
         ...mockUseTheme,
         theme: Theme.dark,
       } as ReturnType<typeof useTheme>)
-      render(<DifyLogo style="monochromeWhite" />)
+      render(<HkaiStudioLogo style="monochromeWhite" />)
       const img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toHaveAttribute('src', '/test-base-path/logo/logo-monochrome-white.svg')
     })
@@ -92,7 +92,7 @@ describe('DifyLogo', () => {
         ...mockUseTheme,
         theme: Theme.light,
       } as ReturnType<typeof useTheme>)
-      render(<DifyLogo style="default" />)
+      render(<HkaiStudioLogo style="default" />)
       const img = screen.getByRole('img', { name: /dify logo/i })
       expect(img).toHaveAttribute('src', '/test-base-path/logo/logo.svg')
     })

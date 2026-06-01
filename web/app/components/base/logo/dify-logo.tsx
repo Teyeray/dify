@@ -19,18 +19,18 @@ export const logoSizeMap: Record<LogoSize, string> = {
   small: 'w-9 h-4',
 }
 
-type DifyLogoProps = {
+type HkaiStudioLogoProps = {
   style?: LogoStyle
   size?: LogoSize
   className?: string
   alt?: string
 }
 
-const DifyLogo: FC<DifyLogoProps> = ({
+const HkaiStudioLogo: FC<HkaiStudioLogoProps> = ({
   style = 'default',
   size = 'medium',
   className,
-  alt = 'Dify logo',
+  alt = 'hkai-workflow Studio logo',
 }) => {
   const { theme } = useTheme()
   const themedStyle = (theme === 'dark' && style === 'default') ? 'monochromeWhite' : style
@@ -44,4 +44,4 @@ const DifyLogo: FC<DifyLogoProps> = ({
   )
 }
 
-export default DifyLogo
+export default HkaiStudioLogo

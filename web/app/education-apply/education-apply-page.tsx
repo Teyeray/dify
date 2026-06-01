@@ -31,7 +31,7 @@ import {
   useInvalidateEducationStatus,
 } from '@/service/use-education'
 import { removeLocalStorageItem } from '@/utils/local-storage'
-import DifyLogo from '../components/base/logo/dify-logo'
+import HkaiStudioLogo from '../components/base/logo/dify-logo'
 import AppliedEducationContent from './applied-education-content'
 import RoleSelector from './role-selector'
 import SearchInput from './search-input'
@@ -201,7 +201,7 @@ const EducationApplyAgeContent = () => {
         >
         </div>
         <div className="mt-[-349px] box-content flex h-7 items-center justify-between p-6">
-          <DifyLogo size="large" style="monochromeWhite" />
+          <HkaiStudioLogo size="large" style="monochromeWhite" />
         </div>
         <div className="mx-auto max-w-[720px] px-8 pb-[180px]">
           <div className="mb-2 flex h-[192px] flex-col justify-end pt-3 pb-4 text-text-primary-on-surface">

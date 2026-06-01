@@ -9,7 +9,7 @@ import { systemFeaturesQueryOptions } from '@/service/system-features'
 import LocaleMenu from './_locale-menu'
 
 // Avoid rendering the logo and theme selector on the server
-const DifyLogo = dynamic(() => import('@/app/components/base/logo/dify-logo'), {
+const HkaiStudioLogo = dynamic(() => import('@/app/components/base/logo/dify-logo'), {
   ssr: false,
   loading: () => <div className="h-7 w-16 bg-transparent" />,
 })
@@ -32,7 +32,7 @@ const Header = () => {
               alt="logo"
             />
           )
-        : <DifyLogo size="large" />}
+        : <HkaiStudioLogo size="large" />}
       <div className="flex items-center gap-1">
         <LocaleMenu
           value={locale}
