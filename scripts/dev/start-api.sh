@@ -19,23 +19,12 @@ if [ -z "$PYTHON_BIN" ]; then
 fi
 
 export FLASK_APP=app.py
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USERNAME=postgres
-export DB_PASSWORD=***
-export DB_DATABASE=dify
-export REDIS_URL="redis://localhost:6379/0"
-export CELERY_BROKER_URL="$REDIS_URL"
-export STORAGE_TYPE=local
-export STORAGE_LOCAL_PATH="$PROJECT_DIR/storage"
-export DIFY_BIND_ADDRESS="0.0.0.0"
-export DIFY_PORT="${HKAI_API_PORT:-5001}"
 
 mkdir -p "$PROJECT_DIR/storage"
 
 echo "========================================"
 echo " hkai-workflow Studio API"
-echo " http://$DIFY_BIND_ADDRESS:$DIFY_PORT"
+echo " http://0.0.0.0:5001"
 echo "========================================"
 
 exec "$PYTHON_BIN" -m app

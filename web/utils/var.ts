@@ -128,9 +128,21 @@ export const getVars = (value: string) => {
   return res
 }
 
-// Set the value of basePath
-// example: /dify
-export const basePath = env.NEXT_PUBLIC_BASE_PATH
+// Set the browser-visible base path.
+// example: /dify or /codeserver/proxy/3000
+export const externalBasePath = env.NEXT_PUBLIC_EXTERNAL_BASE_PATH
+export const basePath = externalBasePath || env.NEXT_PUBLIC_BASE_PATH
+
+export function isLocalAbsolutePath(path: string) {
+  return path.startsWith('/') && !path.startsWith('//')
+}
+
+export function addExternalBasePath(path: string) {
+  if (!externalBasePath || !isLocalAbsolutePath(path) || path.startsWith(`${externalBasePath}/`) || path === externalBasePath)
+    return path
+
+  return `${externalBasePath}${path}`
+}
 
 export function getMarketplaceUrl(path: string, params?: Record<string, string | undefined>) {
   const searchParams = new URLSearchParams({ source: encodeURIComponent(window.location.origin) })

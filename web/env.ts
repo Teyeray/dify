@@ -72,6 +72,10 @@ const clientSchema = {
   NEXT_PUBLIC_ENABLE_WEBSITE_JINAREADER: coercedBoolean.default(true),
   NEXT_PUBLIC_ENABLE_WEBSITE_WATERCRAWL: coercedBoolean.default(false),
   /**
+   * The browser-visible base path for proxied development environments.
+   */
+  NEXT_PUBLIC_EXTERNAL_BASE_PATH: z.string().regex(/^\/.*[^/]$/).or(z.literal('')).default(''),
+  /**
    * The maximum number of tokens for segmentation
    */
   NEXT_PUBLIC_INDEXING_MAX_SEGMENTATION_TOKENS_LENGTH: coercedNumber.default(4000),
@@ -163,8 +167,9 @@ export const env = createEnv({
     NEXT_PUBLIC_ALLOW_INLINE_STYLES: isServer ? process.env.NEXT_PUBLIC_ALLOW_INLINE_STYLES : getRuntimeEnvFromBody('allowInlineStyles'),
     NEXT_PUBLIC_ALLOW_UNSAFE_DATA_SCHEME: isServer ? process.env.NEXT_PUBLIC_ALLOW_UNSAFE_DATA_SCHEME : getRuntimeEnvFromBody('allowUnsafeDataScheme'),
     NEXT_PUBLIC_AMPLITUDE_API_KEY: isServer ? process.env.NEXT_PUBLIC_AMPLITUDE_API_KEY : getRuntimeEnvFromBody('amplitudeApiKey'),
-    NEXT_PUBLIC_API_PREFIX: isServer ? process.env.NEXT_PUBLIC_API_PREFIX : getRuntimeEnvFromBody('apiPrefix'),
+    NEXT_PUBLIC_API_PREFIX: isServer ? process.env.NEXT_PUBLIC_API_PREFIX ?? getVscodeProxyPath(5001, '/console/api') : getRuntimeEnvFromBody('apiPrefix'),
     NEXT_PUBLIC_BASE_PATH: isServer ? process.env.NEXT_PUBLIC_BASE_PATH : getRuntimeEnvFromBody('basePath'),
+    NEXT_PUBLIC_EXTERNAL_BASE_PATH: isServer ? process.env.NEXT_PUBLIC_EXTERNAL_BASE_PATH ?? getVscodeProxyPath(process.env.PORT || 3000) : getRuntimeEnvFromBody('externalBasePath'),
     NEXT_PUBLIC_BATCH_CONCURRENCY: isServer ? process.env.NEXT_PUBLIC_BATCH_CONCURRENCY : getRuntimeEnvFromBody('batchConcurrency'),
     NEXT_PUBLIC_COOKIE_DOMAIN: isServer ? process.env.NEXT_PUBLIC_COOKIE_DOMAIN : getRuntimeEnvFromBody('cookieDomain'),
     NEXT_PUBLIC_CSP_WHITELIST: isServer ? process.env.NEXT_PUBLIC_CSP_WHITELIST : getRuntimeEnvFromBody('cspWhitelist'),
@@ -185,7 +190,7 @@ export const env = createEnv({
     NEXT_PUBLIC_MAX_PARALLEL_LIMIT: isServer ? process.env.NEXT_PUBLIC_MAX_PARALLEL_LIMIT : getRuntimeEnvFromBody('maxParallelLimit'),
     NEXT_PUBLIC_MAX_TOOLS_NUM: isServer ? process.env.NEXT_PUBLIC_MAX_TOOLS_NUM : getRuntimeEnvFromBody('maxToolsNum'),
     NEXT_PUBLIC_MAX_TREE_DEPTH: isServer ? process.env.NEXT_PUBLIC_MAX_TREE_DEPTH : getRuntimeEnvFromBody('maxTreeDepth'),
-    NEXT_PUBLIC_PUBLIC_API_PREFIX: isServer ? process.env.NEXT_PUBLIC_PUBLIC_API_PREFIX : getRuntimeEnvFromBody('publicApiPrefix'),
+    NEXT_PUBLIC_PUBLIC_API_PREFIX: isServer ? process.env.NEXT_PUBLIC_PUBLIC_API_PREFIX ?? getVscodeProxyPath(5001, '/api') : getRuntimeEnvFromBody('publicApiPrefix'),
     NEXT_PUBLIC_SENTRY_DSN: isServer ? process.env.NEXT_PUBLIC_SENTRY_DSN : getRuntimeEnvFromBody('sentryDsn'),
     NEXT_PUBLIC_SITE_ABOUT: isServer ? process.env.NEXT_PUBLIC_SITE_ABOUT : getRuntimeEnvFromBody('siteAbout'),
     NEXT_PUBLIC_SOCKET_URL: isServer ? process.env.NEXT_PUBLIC_SOCKET_URL : getRuntimeEnvFromBody('socketUrl'),
@@ -218,6 +223,24 @@ function getRuntimeEnvFromBody(key: DatasetKey) {
 
   const value = document.body.dataset[key]
   return value || undefined
+}
+
+function withoutTrailingSlash(value: string) {
+  return value.endsWith('/') ? value.slice(0, -1) : value
+}
+
+function getVscodeProxyPath(port: string | number, suffix = '') {
+  const proxyUri = process.env.VSCODE_PROXY_URI
+  if (!proxyUri)
+    return undefined
+
+  try {
+    const url = new URL(proxyUri.replace('{{port}}', String(port)))
+    return `${withoutTrailingSlash(url.pathname)}${suffix}`
+  }
+  catch {
+    return undefined
+  }
 }
 
 /**

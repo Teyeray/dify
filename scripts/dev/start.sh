@@ -30,15 +30,6 @@ fi
 
 cd "$PROJECT_DIR/api"
 export FLASK_APP=app.py
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_USERNAME=postgres
-export DB_PASSWORD=***
-export DB_DATABASE=dify
-export REDIS_URL="redis://localhost:6379/0"
-export CELERY_BROKER_URL="$REDIS_URL"
-export STORAGE_TYPE=local
-export STORAGE_LOCAL_PATH="$PROJECT_DIR/storage"
 
 "$PYTHON_BIN" -m flask upgrade-db 2>&1 | tail -5
 echo -e "${GREEN}✅ Migrations done${NC}"

@@ -9,6 +9,7 @@ import { TanstackQueryInitializer } from '@/context/query-client'
 import { getDatasetMap } from '@/env'
 import { getLocaleOnServer } from '@/i18n-config/server'
 import { headers } from '@/next/headers'
+import { basePath } from '@/utils/var'
 import PartnerStackCookieRecorder from './components/billing/partner-stack/cookie-recorder'
 import { CreateAppAttributionBootstrap } from './components/create-app-attribution-bootstrap'
 import { AgentationLoader } from './components/devtools/agentation-loader'
@@ -38,17 +39,17 @@ const LocaleLayout = async ({
   return (
     <html lang={locale ?? 'en'} className="h-full" suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        <link rel="manifest" href={`${basePath}/manifest.json`} />
         <meta name="theme-color" content="#1C64F2" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="hkai-workflow Studio" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="32x32" href="/icon-192x192.png" />
-        <link rel="icon" type="image/png" sizes="16x16" href="/icon-192x192.png" />
+        <link rel="apple-touch-icon" href={`${basePath}/apple-touch-icon.png`} />
+        <link rel="icon" type="image/png" sizes="32x32" href={`${basePath}/icon-192x192.png`} />
+        <link rel="icon" type="image/png" sizes="16x16" href={`${basePath}/icon-192x192.png`} />
         <meta name="msapplication-TileColor" content="#1C64F2" />
-        <meta name="msapplication-config" content="/browserconfig.xml" />
+        <meta name="msapplication-config" content={`${basePath}/browserconfig.xml`} />
 
         <CreateAppAttributionBootstrap />
         <ReactScanLoader />

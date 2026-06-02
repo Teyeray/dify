@@ -7,6 +7,16 @@ DOCKER_DIR=docker
 DOCKER_MIDDLEWARE_ENV=$(DOCKER_DIR)/middleware.env
 DOCKER_MIDDLEWARE_ENV_EXAMPLE=$(DOCKER_DIR)/envs/middleware.env.example
 DOCKER_MIDDLEWARE_PROJECT=dify-middlewares-dev
+CODE_SERVER_PG_DATA ?= $(HOME)/data/postgres
+CODE_SERVER_FAKE_ROOT_SO ?= /tmp/fake_root.so
+CODE_SERVER_DB_NAME ?= dify
+CODE_SERVER_DB_USER ?= postgres
+CODE_SERVER_DB_PASSWORD ?= difyai123456
+CODE_SERVER_PG_PORT ?= 5432
+CODE_SERVER_REDIS_PORT ?= 6379
+CODE_SERVER_API_PORT ?= 5001
+CODE_SERVER_WEB_PORT ?= 3000
+CODE_SERVER_PYTHON ?= python
 
 # Default target - show help
 .DEFAULT_GOAL := help
@@ -184,6 +194,124 @@ build-push-web: build-web push-web
 build-push-all: build-all push-all
 	@echo "All Docker images have been built and pushed."
 
+# code-server restricted environment helpers
+codeserver-install-project:
+	@echo "Installing Python editable packages and frontend dependencies..."
+	@pip install -e ./dify-agent
+	@pip install -e ./api
+	@pnpm install
+	@echo "Project dependencies installed"
+
+codeserver-fake-root:
+	@printf '%s\n' \
+		'#include <unistd.h>' \
+		'uid_t getuid(void)  { return 1000; }' \
+		'uid_t geteuid(void) { return 1000; }' \
+		'gid_t getgid(void)  { return 1000; }' \
+		'gid_t getegid(void) { return 1000; }' \
+		> /tmp/fake_root.c
+	@gcc -shared -fPIC -o $(CODE_SERVER_FAKE_ROOT_SO) /tmp/fake_root.c
+	@echo "Built $(CODE_SERVER_FAKE_ROOT_SO)"
+
+codeserver-postgres-init: codeserver-fake-root
+	@mkdir -p $(CODE_SERVER_PG_DATA)
+	@chown 1000:1000 $(CODE_SERVER_PG_DATA) 2>/dev/null || true
+	@if [ -f "$(CODE_SERVER_PG_DATA)/PG_VERSION" ]; then \
+		echo "PostgreSQL data directory already initialized"; \
+	else \
+		LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) initdb -D $(CODE_SERVER_PG_DATA); \
+	fi
+
+codeserver-postgres-start: codeserver-fake-root
+	@LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) pg_ctl \
+		-D $(CODE_SERVER_PG_DATA) \
+		-l $(CODE_SERVER_PG_DATA)/logfile \
+		start -o "-p $(CODE_SERVER_PG_PORT) -k /tmp"
+
+codeserver-postgres-createdb: codeserver-fake-root
+	@LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) psql -U $(CODE_SERVER_DB_USER) -h /tmp -p $(CODE_SERVER_PG_PORT) -v ON_ERROR_STOP=1 \
+		-c "ALTER USER $(CODE_SERVER_DB_USER) WITH PASSWORD '$(CODE_SERVER_DB_PASSWORD)';"
+	@if LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) psql -U $(CODE_SERVER_DB_USER) -h /tmp -p $(CODE_SERVER_PG_PORT) -tAc "SELECT 1 FROM pg_database WHERE datname = '$(CODE_SERVER_DB_NAME)'" | grep -q 1; then \
+		echo "Database $(CODE_SERVER_DB_NAME) already exists"; \
+	else \
+		LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) createdb -U $(CODE_SERVER_DB_USER) -h /tmp -p $(CODE_SERVER_PG_PORT) $(CODE_SERVER_DB_NAME); \
+	fi
+	@LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) psql -U $(CODE_SERVER_DB_USER) -h /tmp -p $(CODE_SERVER_PG_PORT) -v ON_ERROR_STOP=1 \
+		-c "GRANT ALL PRIVILEGES ON DATABASE $(CODE_SERVER_DB_NAME) TO $(CODE_SERVER_DB_USER);"
+
+codeserver-redis-start:
+	@redis-server --daemonize yes --port $(CODE_SERVER_REDIS_PORT)
+	@redis-cli -p $(CODE_SERVER_REDIS_PORT) ping
+
+codeserver-env:
+	@mkdir -p storage
+	@printf '%s\n' \
+		'FLASK_APP=app.py' \
+		'SECRET_KEY=code-server-dev-secret-key-change-me' \
+		'' \
+		'DB_TYPE=postgresql' \
+		'DB_HOST=localhost' \
+		'DB_PORT=$(CODE_SERVER_PG_PORT)' \
+		'DB_USERNAME=$(CODE_SERVER_DB_USER)' \
+		'DB_PASSWORD=$(CODE_SERVER_DB_PASSWORD)' \
+		'DB_DATABASE=$(CODE_SERVER_DB_NAME)' \
+		'' \
+		'REDIS_HOST=localhost' \
+		'REDIS_PORT=$(CODE_SERVER_REDIS_PORT)' \
+		'REDIS_USERNAME=' \
+		'REDIS_PASSWORD=' \
+		'REDIS_DB=0' \
+		'REDIS_USE_SSL=false' \
+		'' \
+		'CELERY_BROKER_URL=redis://localhost:$(CODE_SERVER_REDIS_PORT)/1' \
+		'CELERY_BACKEND=redis' \
+		'' \
+		'STORAGE_TYPE=local' \
+		'STORAGE_LOCAL_PATH=../storage' \
+		'' \
+		'CONSOLE_API_URL=http://localhost:$(CODE_SERVER_API_PORT)' \
+		'CONSOLE_WEB_URL=http://localhost:$(CODE_SERVER_WEB_PORT)' \
+		'CONSOLE_CORS_ALLOW_ORIGINS=*' \
+		'' \
+		'LOG_LEVEL=INFO' \
+		> api/.env
+	@printf '%s\n' \
+		'NEXT_PUBLIC_BASE_PATH=' \
+		'NEXT_PUBLIC_DEPLOY_ENV=DEVELOPMENT' \
+		'NEXT_PUBLIC_EDITION=SELF_HOSTED' \
+		'NEXT_TELEMETRY_DISABLED=1' \
+		'CONSOLE_API_URL=http://127.0.0.1:$(CODE_SERVER_API_PORT)' \
+		> web/.env.local
+	@if [ -n "$$VSCODE_PROXY_URI" ]; then \
+		web_proxy_path="$$(python -c 'import os; from urllib.parse import urlparse; print(urlparse(os.environ["VSCODE_PROXY_URI"].replace("{{port}}", "$(CODE_SERVER_WEB_PORT)")).path.rstrip("/"))')"; \
+		api_proxy_path="$$(python -c 'import os; from urllib.parse import urlparse; print(urlparse(os.environ["VSCODE_PROXY_URI"].replace("{{port}}", "$(CODE_SERVER_API_PORT)")).path.rstrip("/"))')"; \
+		printf '%s\n' \
+			"NEXT_PUBLIC_EXTERNAL_BASE_PATH=$$web_proxy_path" \
+			"NEXT_PUBLIC_API_PREFIX=$$api_proxy_path/console/api" \
+			"NEXT_PUBLIC_PUBLIC_API_PREFIX=$$api_proxy_path/api" \
+			>> web/.env.local; \
+		echo "Detected VSCODE_PROXY_URI and wrote code-server proxy paths"; \
+	else \
+		echo "VSCODE_PROXY_URI is empty; web/.env.local uses local paths until proxy values are added"; \
+	fi
+	@echo "Wrote api/.env and web/.env.local"
+
+codeserver-upgrade-db:
+	@cd api && FLASK_APP=app.py $(CODE_SERVER_PYTHON) -m flask upgrade-db
+
+codeserver-start-api:
+	@cd api && $(CODE_SERVER_PYTHON) -m app
+
+codeserver-start-worker:
+	@cd api && $(CODE_SERVER_PYTHON) -m celery -A celery_entrypoint.celery worker \
+		-P gevent -c 1 \
+		--max-tasks-per-child 50 \
+		--loglevel INFO \
+		-Q api_token,dataset,dataset_summary,priority_dataset,priority_pipeline,pipeline,mail,ops_trace,app_deletion,plugin,workflow_storage,conversation,workflow,schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_publisher,trigger_refresh_executor,retention,workflow_based_app_execution
+
+codeserver-start-web:
+	@cd web && PORT=$(CODE_SERVER_WEB_PORT) pnpm dev
+
 # Help target
 help:
 	@echo "Development Setup Targets:"
@@ -209,6 +337,19 @@ help:
 	@echo "  make build-all      - Build all Docker images"
 	@echo "  make push-all       - Push all Docker images"
 	@echo "  make build-push-all - Build and push all Docker images"
+	@echo ""
+	@echo "code-server Restricted Environment:"
+	@echo "  make codeserver-install-project - Install editable Python packages and frontend deps"
+	@echo "  make codeserver-fake-root       - Build /tmp/fake_root.so for PostgreSQL"
+	@echo "  make codeserver-postgres-init   - Initialize PostgreSQL data under ~/data/postgres"
+	@echo "  make codeserver-postgres-start  - Start PostgreSQL on localhost:5432 and /tmp socket"
+	@echo "  make codeserver-postgres-createdb - Set postgres password and create dify database"
+	@echo "  make codeserver-redis-start     - Start Redis on localhost:6379"
+	@echo "  make codeserver-env             - Write api/.env and web/.env.local"
+	@echo "  make codeserver-upgrade-db      - Run API database migrations"
+	@echo "  make codeserver-start-api       - Start API"
+	@echo "  make codeserver-start-worker    - Start Celery worker"
+	@echo "  make codeserver-start-web       - Start Web"
 
 # Phony targets
-.PHONY: build-web build-api push-web push-api build-all push-all build-push-all dev-setup prepare-docker prepare-web prepare-api dev-clean help format check lint api-contract-lint type-check test test-all
+.PHONY: build-web build-api push-web push-api build-all push-all build-push-all dev-setup prepare-docker prepare-web prepare-api dev-clean help format check lint api-contract-lint type-check test test-all codeserver-install-project codeserver-fake-root codeserver-postgres-init codeserver-postgres-start codeserver-postgres-createdb codeserver-redis-start codeserver-env codeserver-upgrade-db codeserver-start-api codeserver-start-worker codeserver-start-web
