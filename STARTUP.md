@@ -1,14 +1,19 @@
-# hkai-workflow Studio — 启动指南
+# hkai-workflow Studio — 手动启动指南
+
+适用于服务器环境，逐步手动启动每个组件。
+
+---
 
 ## 前置条件
 
-- macOS（脚本基于 Homebrew）
-- Python 3.12（通过 miniforge/conda 安装）
+- Python 3.12（conda 环境）
 - Node.js + pnpm
-- PostgreSQL 15：`brew install postgresql@15`
-- Redis：`brew install redis`
+- PostgreSQL 15 已安装并运行
+- Redis 已安装并运行
 
-**安装 conda 环境（首次）：**
+---
+
+## Step 1：创建 conda 环境
 
 ```bash
 conda create -n dify python=3.12 -c conda-forge
@@ -17,163 +22,193 @@ conda activate dify
 
 ---
 
-## 快速启动
-
-### 第一次运行：执行初始化
+## Step 2：安装 Python 依赖
 
 ```bash
-./scripts/dev/setup.sh
-```
-
-该脚本会依次完成：
-
-1. 安装 Python 依赖（dify-agent + api）
-2. 安装前端依赖（pnpm install）
-3. 执行数据库迁移
-4. 创建本地 storage 目录
-
-### 启动所有服务
-
-```bash
-./scripts/dev/start.sh
-```
-
-启动后访问：
-
-| 服务     | 地址                    |
-|----------|-------------------------|
-| 前端     | http://localhost:3000   |
-| API      | http://localhost:5001   |
-| PostgreSQL | localhost:5432        |
-| Redis    | localhost:6379          |
-
-按 `Ctrl+C` 停止所有服务。
-
-### 停止服务
-
-```bash
-./scripts/dev/stop.sh
-```
-
-交互式询问是否同时停止 PostgreSQL 和 Redis。
-
----
-
-## 分步启动
-
-如需单独启动各组件：
-
-```bash
-# 1. 启动基础设施（PostgreSQL + Redis）
-./scripts/dev/start-infra.sh
-
-# 2. 启动 API 后端（端口 5001）
-./scripts/dev/start-api.sh
-
-# 3. 启动前端（端口 3000）
-./scripts/dev/start-web.sh
-
-# 4. 启动 Celery Worker（异步任务，可选）
-./scripts/dev/start-worker.sh
+# 在项目根目录执行
+pip install -e ./dify-agent
+pip install -e ./api
 ```
 
 ---
 
-## 环境变量
-
-可通过以下环境变量覆盖默认配置：
-
-| 变量             | 默认值                        | 说明                    |
-|------------------|-------------------------------|-------------------------|
-| `HKAI_PYTHON`    | `~/miniforge3/envs/dify/bin/python` | Python 3.12 路径   |
-| `HKAI_API_PORT`  | `5001`                        | API 服务端口            |
-| `HKAI_WEB_PORT`  | `3000`                        | 前端服务端口            |
-| `HKAI_API_URL`   | `http://localhost:5001`       | 前端访问 API 的地址     |
-
-示例：
+## Step 3：安装前端依赖
 
 ```bash
-HKAI_API_PORT=5002 HKAI_WEB_PORT=3001 ./scripts/dev/start.sh
+# 在项目根目录执行
+pnpm install
 ```
 
 ---
 
-## 默认数据库配置
-
-| 参数       | 值              |
-|------------|-----------------|
-| Host       | localhost       |
-| Port       | 5432            |
-| Username   | postgres        |
-| Password   | difyai123456    |
-| Database   | dify            |
-| Redis URL  | redis://localhost:6379/0 |
-
-`start-infra.sh` 会自动创建 `postgres` 用户、设置密码并创建 `dify` 数据库。
-
----
-
-## 常见问题
-
-**Python 找不到**
-
-脚本默认查找 `~/miniforge3/envs/dify/bin/python`。如路径不同，通过环境变量指定：
+## Step 4：启动 PostgreSQL
 
 ```bash
-export HKAI_PYTHON=/path/to/python3.12
-./scripts/dev/start.sh
+# 启动服务（按实际环境选择）
+pg_ctl start -D /your/data/dir        # 通用方式
+# 或
+sudo systemctl start postgresql        # systemd
 ```
 
-**端口冲突**
+然后创建数据库和用户：
 
 ```bash
-HKAI_API_PORT=5002 HKAI_WEB_PORT=3001 ./scripts/dev/start.sh
+psql -U postgres
 ```
 
-**PostgreSQL 连接失败**
-
-```bash
-brew services list | grep postgresql   # 检查是否已启动
-brew services restart postgresql@15    # 重启服务
+```sql
+ALTER USER postgres PASSWORD 'difyai123456';
+CREATE DATABASE dify;
+\q
 ```
 
-**Redis 连接失败**
+验证：
 
 ```bash
-redis-cli ping                        # 应返回 PONG
-brew services restart redis
+PGPASSWORD=difyai123456 psql -U postgres -h localhost -d dify -c "SELECT 1"
 ```
 
 ---
 
-## 代码质量
-
-**后端：**
+## Step 5：启动 Redis
 
 ```bash
-make format        # ruff 格式化
-make lint          # 格式化 + lint
-make type-check    # 类型检查
-make test          # 单元测试
+redis-server --daemonize yes          # 后台运行
+# 或
+sudo systemctl start redis
 ```
 
-**前端：**
+验证：
 
 ```bash
-pnpm -C web run test    # 单元测试（Vitest）
-pnpm -C web run lint    # ESLint
-pnpm -C web run build   # 生产构建
+redis-cli ping    # 应返回 PONG
 ```
 
 ---
 
-## 目录结构
+## Step 6：数据库迁移
+
+```bash
+conda activate dify
+cd api
+
+export FLASK_APP=app.py
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USERNAME=postgres
+export DB_PASSWORD=difyai123456
+export DB_DATABASE=dify
+export REDIS_URL=redis://localhost:6379/0
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export STORAGE_TYPE=local
+export STORAGE_LOCAL_PATH=../storage
+
+python -m flask upgrade-db
+```
+
+---
+
+## Step 7：启动 API
+
+新开一个终端：
+
+```bash
+conda activate dify
+cd api
+
+export FLASK_APP=app.py
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USERNAME=postgres
+export DB_PASSWORD=difyai123456
+export DB_DATABASE=dify
+export REDIS_URL=redis://localhost:6379/0
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export STORAGE_TYPE=local
+export STORAGE_LOCAL_PATH=../storage
+export DIFY_BIND_ADDRESS=0.0.0.0
+export DIFY_PORT=5001
+
+mkdir -p ../storage
+python -m app
+```
+
+API 运行在 http://localhost:5001
+
+---
+
+## Step 8：启动 Celery Worker
+
+新开一个终端：
+
+```bash
+conda activate dify
+cd api
+
+export FLASK_APP=app.py
+export DB_HOST=localhost
+export DB_PORT=5432
+export DB_USERNAME=postgres
+export DB_PASSWORD=difyai123456
+export DB_DATABASE=dify
+export REDIS_URL=redis://localhost:6379/0
+export CELERY_BROKER_URL=redis://localhost:6379/0
+export STORAGE_TYPE=local
+export STORAGE_LOCAL_PATH=../storage
+
+python -m celery -A celery_entrypoint.celery worker \
+  -P gevent -c 1 \
+  --max-tasks-per-child 50 \
+  --loglevel INFO \
+  -Q api_token,dataset,mail,pipeline,workflow,schedule_poller,schedule_executor,conversation,app_deletion
+```
+
+---
+
+## Step 9：启动前端
+
+新开一个终端：
+
+```bash
+cd web
+
+export NEXT_PUBLIC_DEPLOY_ENV=PRODUCTION
+export NEXT_PUBLIC_EDITION=SELF_HOSTED
+export NEXT_PUBLIC_API_PREFIX=http://localhost:5001/console/api
+export NEXT_PUBLIC_PUBLIC_API_PREFIX=http://localhost:5001/api
+export NEXT_TELEMETRY_DISABLED=1
+
+npx next dev --port 3000
+```
+
+前端运行在 http://localhost:3000
+
+---
+
+## 启动顺序总结
 
 ```
-/api          — Flask 后端（Python）
-/web          — Next.js 前端（TypeScript）
-/dify-agent   — Agent 后端服务
-/docker       — Docker Compose 配置
-/scripts/dev  — 本地开发启动脚本
-/storage      — 本地文件存储（自动创建）
+1. PostgreSQL
+2. Redis
+3. flask upgrade-db（只需首次或更新后执行）
+4. API（python -m app）
+5. Celery Worker
+6. Web（npx next dev）
+```
+
+---
+
+## 停止服务
+
+```bash
+# 停止 API 和前端
+kill $(lsof -ti:5001)   # API
+kill $(lsof -ti:3000)   # Web
+
+# 停止 Worker
+pkill -f "celery.*worker"
+
+# 停止 PostgreSQL / Redis（按实际方式）
+sudo systemctl stop postgresql
+sudo systemctl stop redis
 ```
