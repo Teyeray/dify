@@ -95,7 +95,15 @@ const main = async () => {
 
   // Start server
   const port = process.env.npm_config_port || process.env.PORT || '3000'
-  const host = process.env.npm_config_host || process.env.HOSTNAME || '0.0.0.0'
+  // Bind on 0.0.0.0 unconditionally so the server actually listens on a
+  // reachable interface. Reading process.env.HOSTNAME here used to break
+  // in container environments (k8s pods, code-server containers) where
+  // $HOSTNAME is the pod hostname — a name that doesn't resolve in DNS
+  // — so next started up, banner looked fine, but the socket was bound
+  // to an unreachable address. Connection attempts then failed with
+  // ECONNREFUSED even though the process was alive. Honour
+  // npm_config_host for explicit overrides; otherwise always 0.0.0.0.
+  const host = process.env.npm_config_host || '0.0.0.0'
 
   console.info(`Starting server on ${host}:${port}`)
   console.debug(`Server script path: ${serverScriptPath}`)
