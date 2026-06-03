@@ -44,7 +44,7 @@ def init_app(app: DifyApp):
 
     # Configure root logger
     logging.basicConfig(
-        level=dify_config.LOG_LEVEL,
+        level=_normalize_log_level(dify_config.LOG_LEVEL),
         handlers=log_handlers,
         force=True,
     )
@@ -141,3 +141,39 @@ def apply_request_id_formatter():
     for handler in logging.root.handlers:
         if handler.formatter:
             handler.formatter = RequestIdFormatter(dify_config.LOG_FORMAT, dify_config.LOG_DATEFORMAT)
+
+
+# Map of common log-level spellings to the canonical name accepted by
+# logging.basicConfig. Python 3.12+ rejects the legacy lowercase "warn"
+# alias, so we translate it (and other common spellings) before
+# forwarding. Numeric levels and unknown values pass through to
+# logging's own _checkLevel, which raises a clear ValueError.
+_LOG_LEVEL_ALIASES: dict[str, str] = {
+    "warn": "WARNING",
+    "warning": "WARNING",
+    "fatal": "CRITICAL",
+    "crit": "CRITICAL",
+    "err": "ERROR",
+    "info": "INFO",
+    "debug": "DEBUG",
+    "trace": "DEBUG",
+}
+
+
+def _normalize_log_level(level: str | int | None) -> str | int | None:
+    """Coerce LOG_LEVEL config values to what logging.basicConfig accepts.
+
+    Accepts both canonical names ("WARNING") and common legacy aliases
+    ("warn", "fatal"). Returns the value as-is if it is already a valid
+    int (numeric level) or None (use logging default).
+    """
+    if level is None:
+        return None
+    if isinstance(level, int):
+        return level
+    if isinstance(level, str):
+        stripped = level.strip()
+        if not stripped:
+            return None
+        return _LOG_LEVEL_ALIASES.get(stripped.lower(), stripped.upper())
+    return level
