@@ -26,14 +26,15 @@ const nextConfig: NextConfig = {
     // https://nextjs.org/docs/api-reference/next.config.js/ignoring-typescript-errors
     ignoreBuildErrors: true,
   },
+  // The root path is handled in web/app/page.tsx via a client-side
+  // router.replace, NOT via this server-side redirects() entry. A 307
+  // from this hook writes a Location: header, and the nested reverse
+  // proxies in the code-server deployment strip the outer prefix off
+  // that header (leaving /proxy/3000/apps), which then 404s. Routing
+  // through window.location on the client side avoids the proxy
+  // Location-header rewrite entirely.
   async redirects() {
-    return [
-      {
-        source: '/',
-        destination: '/apps',
-        permanent: false,
-      },
-    ]
+    return []
   },
   // Deny framing on device-flow routes — no trusted embedder exists.
   async headers() {
