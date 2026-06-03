@@ -20,6 +20,11 @@ CODE_SERVER_PYTHON ?= python
 CODE_SERVER_SANDBOX_PORT ?= 8194
 CODE_SERVER_SANDBOX_API_KEY ?= dify-sandbox
 
+# Web mode: "prod" runs pnpm build && pnpm start (no file watcher — safe in
+# constrained inotify environments like code-server), "dev" runs pnpm dev
+# (hot reload, needs a generous fs.inotify.max_user_watches).
+CODE_SERVER_WEB_MODE ?= prod
+
 # Default target - show help
 .DEFAULT_GOAL := help
 
@@ -329,8 +334,17 @@ codeserver-start-worker:
 		--loglevel INFO \
 		-Q api_token,dataset,dataset_summary,priority_dataset,priority_pipeline,pipeline,mail,ops_trace,app_deletion,plugin,workflow_storage,conversation,workflow,schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_publisher,trigger_refresh_executor,retention,workflow_based_app_execution
 
+codeserver-build-web:
+	@cd web && pnpm build
+
 codeserver-start-web:
-	@cd web && PORT=$(CODE_SERVER_WEB_PORT) pnpm dev
+	@if [ "$(CODE_SERVER_WEB_MODE)" = "dev" ]; then \
+		echo "Starting web in DEV mode (pnpm dev) — needs sufficient fs.inotify.max_user_watches"; \
+		cd web && PORT=$(CODE_SERVER_WEB_PORT) pnpm dev; \
+	else \
+		echo "Starting web in PROD mode (pnpm build && pnpm start) — run 'make codeserver-build-web' first to skip the rebuild on relaunch"; \
+		cd web && PORT=$(CODE_SERVER_WEB_PORT) sh -c 'pnpm build && pnpm start'; \
+	fi
 
 # Start all four services in the background, combined log with per-service prefixes
 codeserver-start-all:
@@ -339,6 +353,7 @@ codeserver-start-all:
 	 SANDBOX_API_KEY=$(CODE_SERVER_SANDBOX_API_KEY) \
 	 API_PORT=$(CODE_SERVER_API_PORT) \
 	 WEB_PORT=$(CODE_SERVER_WEB_PORT) \
+	 WEB_MODE=$(CODE_SERVER_WEB_MODE) \
 	 bash scripts/dev/start-all.sh
 
 # Stop all services started by codeserver-start-all
@@ -425,8 +440,9 @@ help:
 	@echo "  make codeserver-logs            - Tail combined log (Ctrl-C to exit)"
 	@echo "  make codeserver-start-api       - Start API  (foreground, terminal 1)"
 	@echo "  make codeserver-start-worker    - Start Celery worker  (foreground, terminal 2)"
-	@echo "  make codeserver-start-web       - Start Web  (foreground, terminal 3)"
+	@echo "  make codeserver-start-web       - Start Web  (foreground, terminal 3, mode=$$CODE_SERVER_WEB_MODE)"
+	@echo "  make codeserver-build-web       - Build the Next.js standalone bundle (mode=prod prereq)"
 	@echo "  make codeserver-start-sandbox   - Start dev sandbox  (foreground, terminal 4, optional)"
 
 # Phony targets
-.PHONY: build-web build-api push-web push-api build-all push-all build-push-all dev-setup prepare-docker prepare-web prepare-api dev-clean help format check lint api-contract-lint type-check test test-all codeserver-install-project codeserver-fake-root codeserver-postgres-init codeserver-postgres-start codeserver-postgres-createdb codeserver-redis-start codeserver-env codeserver-upgrade-db codeserver-setup codeserver-infra-start codeserver-infra-stop codeserver-start-all codeserver-stop-all codeserver-logs codeserver-start-api codeserver-start-worker codeserver-start-web codeserver-start-sandbox
+.PHONY: build-web build-api push-web push-api build-all push-all build-push-all dev-setup prepare-docker prepare-web prepare-api dev-clean help format check lint api-contract-lint type-check test test-all codeserver-install-project codeserver-fake-root codeserver-postgres-init codeserver-postgres-start codeserver-postgres-createdb codeserver-redis-start codeserver-env codeserver-upgrade-db codeserver-setup codeserver-infra-start codeserver-infra-stop codeserver-start-all codeserver-stop-all codeserver-logs codeserver-start-api codeserver-start-worker codeserver-start-web codeserver-build-web codeserver-start-sandbox

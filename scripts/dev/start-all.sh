@@ -9,6 +9,8 @@
 #   SANDBOX_API_KEY   Dev sandbox API key     (default: dify-sandbox)
 #   API_PORT          Flask API port          (default: 5001)
 #   WEB_PORT          Next.js port            (default: 3000)
+#   WEB_MODE          "prod" (default, pnpm build && pnpm start) or
+#                     "dev"  (pnpm dev, needs sufficient inotify watches)
 #   LOGS_DIR          Log directory           (default: logs)
 #   PID_FILE          PID tracking file       (default: .codeserver.pids)
 
@@ -19,6 +21,7 @@ SANDBOX_PORT="${SANDBOX_PORT:-8194}"
 SANDBOX_API_KEY="${SANDBOX_API_KEY:-dify-sandbox}"
 API_PORT="${API_PORT:-5001}"
 WEB_PORT="${WEB_PORT:-3000}"
+WEB_MODE="${WEB_MODE:-prod}"
 LOGS_DIR="${LOGS_DIR:-logs}"
 PID_FILE="${PID_FILE:-.codeserver.pids}"
 
@@ -114,7 +117,17 @@ start_svc "worker" "$ROOT/api" \
     -Q api_token,dataset,dataset_summary,priority_dataset,priority_pipeline,pipeline,mail,ops_trace,app_deletion,plugin,workflow_storage,conversation,workflow,schedule_poller,schedule_executor,triggered_workflow_dispatcher,trigger_refresh_publisher,trigger_refresh_executor,retention,workflow_based_app_execution
 
 start_svc "web" "$ROOT/web" \
-  env PORT="$WEB_PORT" pnpm dev
+  env PORT="$WEB_PORT" WEB_MODE="$WEB_MODE" bash -c '
+    if [ "$WEB_MODE" = "dev" ]; then
+      pnpm dev
+    else
+      # Build once before starting so pnpm start has a fresh standalone
+      # bundle. In a constrained code-server environment pnpm dev hits
+      # fs.inotify.max_user_watches; the prod path avoids the file
+      # watcher entirely.
+      pnpm build && pnpm start
+    fi
+  '
 
 echo ""
 echo "  Tail logs  →  make codeserver-logs"
