@@ -357,6 +357,9 @@ class PluginService:
         """
         Fetch plugin installation tasks
         """
+        if not dify_config.MARKETPLACE_ENABLED:
+            return []
+
         manager = PluginInstaller()
         tasks = manager.fetch_plugin_installation_tasks(tenant_id, page, page_size)
         if any(task.status in PluginService.PLUGIN_INSTALL_TASK_TERMINAL_STATUSES for task in tasks):
