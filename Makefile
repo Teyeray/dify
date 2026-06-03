@@ -262,7 +262,7 @@ codeserver-env:
 		'SECRET_KEY=code-server-dev-secret-key-change-me' \
 		'' \
 		'DB_TYPE=postgresql' \
-		'DB_HOST=localhost' \
+		'DB_HOST=127.0.0.1' \
 		'DB_PORT=$(CODE_SERVER_PG_PORT)' \
 		'DB_USERNAME=$(CODE_SERVER_DB_USER)' \
 		'DB_PASSWORD=$(CODE_SERVER_DB_PASSWORD)' \
@@ -317,7 +317,7 @@ codeserver-env:
 	@echo "Wrote api/.env and web/.env.local"
 
 codeserver-upgrade-db:
-	@cd api && FLASK_APP=app.py $(CODE_SERVER_PYTHON) -m flask upgrade-db
+	@cd api && FLASK_APP=app.py DB_HOST=127.0.0.1 $(CODE_SERVER_PYTHON) -m flask upgrade-db
 
 codeserver-start-api:
 	@cd api && $(CODE_SERVER_PYTHON) -m app
