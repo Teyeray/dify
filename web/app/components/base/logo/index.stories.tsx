@@ -8,7 +8,7 @@ import LogoSite from './logo-site'
 
 const meta = {
   title: 'Base/General/Logo',
-  component: DifyLogo,
+  component: HkaiStudioLogo,
   parameters: {
     layout: 'centered',
     docs: {
@@ -32,7 +32,7 @@ const meta = {
     },
   },
   tags: ['autodocs'],
-} satisfies Meta<typeof DifyLogo>
+} satisfies Meta<typeof HkaiStudioLogo>
 
 export default meta
 type Story = StoryObj<typeof meta>
