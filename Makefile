@@ -17,6 +17,8 @@ CODE_SERVER_REDIS_PORT ?= 6379
 CODE_SERVER_API_PORT ?= 5001
 CODE_SERVER_WEB_PORT ?= 3000
 CODE_SERVER_PYTHON ?= python
+CODE_SERVER_SANDBOX_PORT ?= 8194
+CODE_SERVER_SANDBOX_API_KEY ?= dify-sandbox
 
 # Default target - show help
 .DEFAULT_GOAL := help
@@ -223,10 +225,16 @@ codeserver-postgres-init: codeserver-fake-root
 	fi
 
 codeserver-postgres-start: codeserver-fake-root
-	@LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) pg_ctl \
-		-D $(CODE_SERVER_PG_DATA) \
-		-l $(CODE_SERVER_PG_DATA)/logfile \
-		start -o "-p $(CODE_SERVER_PG_PORT) -k /tmp"
+	@if LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) pg_ctl -D $(CODE_SERVER_PG_DATA) status >/dev/null 2>&1; then \
+		echo "PostgreSQL is already running; checking health..."; \
+		LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) psql -U $(CODE_SERVER_DB_USER) -h /tmp -p $(CODE_SERVER_PG_PORT) -c "SELECT 1;" >/dev/null; \
+		echo "PostgreSQL is healthy"; \
+	else \
+		LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) pg_ctl \
+			-D $(CODE_SERVER_PG_DATA) \
+			-l $(CODE_SERVER_PG_DATA)/logfile \
+			start -o "-p $(CODE_SERVER_PG_PORT) -k /tmp"; \
+	fi
 
 codeserver-postgres-createdb: codeserver-fake-root
 	@LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) psql -U $(CODE_SERVER_DB_USER) -h /tmp -p $(CODE_SERVER_PG_PORT) -v ON_ERROR_STOP=1 \
@@ -240,8 +248,12 @@ codeserver-postgres-createdb: codeserver-fake-root
 		-c "GRANT ALL PRIVILEGES ON DATABASE $(CODE_SERVER_DB_NAME) TO $(CODE_SERVER_DB_USER);"
 
 codeserver-redis-start:
-	@redis-server --daemonize yes --port $(CODE_SERVER_REDIS_PORT)
-	@redis-cli -p $(CODE_SERVER_REDIS_PORT) ping
+	@if redis-cli -p $(CODE_SERVER_REDIS_PORT) ping >/dev/null 2>&1; then \
+		echo "Redis is already running on port $(CODE_SERVER_REDIS_PORT)"; \
+	else \
+		redis-server --daemonize yes --port $(CODE_SERVER_REDIS_PORT); \
+		redis-cli -p $(CODE_SERVER_REDIS_PORT) ping; \
+	fi
 
 codeserver-env:
 	@mkdir -p storage
@@ -273,6 +285,12 @@ codeserver-env:
 		'CONSOLE_WEB_URL=http://localhost:$(CODE_SERVER_WEB_PORT)' \
 		'CONSOLE_CORS_ALLOW_ORIGINS=*' \
 		'' \
+		'MARKETPLACE_ENABLED=false' \
+		'ENABLE_CHECK_UPGRADABLE_PLUGIN_TASK=false' \
+		'' \
+		'CODE_EXECUTION_ENDPOINT=http://localhost:$(CODE_SERVER_SANDBOX_PORT)' \
+		'CODE_EXECUTION_API_KEY=$(CODE_SERVER_SANDBOX_API_KEY)' \
+		'' \
 		'LOG_LEVEL=INFO' \
 		> api/.env
 	@printf '%s\n' \
@@ -285,10 +303,12 @@ codeserver-env:
 	@if [ -n "$$VSCODE_PROXY_URI" ]; then \
 		web_proxy_path="$$(python -c 'import os; from urllib.parse import urlparse; print(urlparse(os.environ["VSCODE_PROXY_URI"].replace("{{port}}", "$(CODE_SERVER_WEB_PORT)")).path.rstrip("/"))')"; \
 		api_proxy_path="$$(python -c 'import os; from urllib.parse import urlparse; print(urlparse(os.environ["VSCODE_PROXY_URI"].replace("{{port}}", "$(CODE_SERVER_API_PORT)")).path.rstrip("/"))')"; \
+		proxy_host="$$(python -c 'import os; from urllib.parse import urlparse; print(urlparse(os.environ["VSCODE_PROXY_URI"].replace("{{port}}", "$(CODE_SERVER_WEB_PORT)")).hostname or "")')"; \
 		printf '%s\n' \
 			"NEXT_PUBLIC_EXTERNAL_BASE_PATH=$$web_proxy_path" \
 			"NEXT_PUBLIC_API_PREFIX=$$api_proxy_path/console/api" \
 			"NEXT_PUBLIC_PUBLIC_API_PREFIX=$$api_proxy_path/api" \
+			"NEXT_ALLOWED_DEV_ORIGINS=$$proxy_host" \
 			>> web/.env.local; \
 		echo "Detected VSCODE_PROXY_URI and wrote code-server proxy paths"; \
 	else \
@@ -311,6 +331,56 @@ codeserver-start-worker:
 
 codeserver-start-web:
 	@cd web && PORT=$(CODE_SERVER_WEB_PORT) pnpm dev
+
+# Start all four services in the background, combined log with per-service prefixes
+codeserver-start-all:
+	@PYTHON=$(CODE_SERVER_PYTHON) \
+	 SANDBOX_PORT=$(CODE_SERVER_SANDBOX_PORT) \
+	 SANDBOX_API_KEY=$(CODE_SERVER_SANDBOX_API_KEY) \
+	 API_PORT=$(CODE_SERVER_API_PORT) \
+	 WEB_PORT=$(CODE_SERVER_WEB_PORT) \
+	 bash scripts/dev/start-all.sh
+
+# Stop all services started by codeserver-start-all
+codeserver-stop-all:
+	@bash scripts/dev/stop-all.sh
+
+# Tail the combined log (Ctrl-C to exit)
+codeserver-logs:
+	@tail -f logs/codeserver.log
+
+# Convenience aggregators for code-server — orchestrate the individual targets above
+
+# First-time setup: build fake_root → init PG → start PG → create DB → start Redis → write envs → migrate
+codeserver-setup: codeserver-postgres-init codeserver-postgres-start codeserver-postgres-createdb codeserver-redis-start codeserver-env codeserver-upgrade-db
+	@echo ""
+	@echo "code-server environment ready. Start each service in a separate terminal:"
+	@echo "  make codeserver-start-api      # terminal 1 — Flask API"
+	@echo "  make codeserver-start-worker   # terminal 2 — Celery worker"
+	@echo "  make codeserver-start-web      # terminal 3 — Next.js frontend"
+
+# Daily startup: bring PostgreSQL and Redis back up (idempotent — safe to re-run)
+codeserver-infra-start: codeserver-postgres-start codeserver-redis-start
+	@echo "Infrastructure is up"
+
+# Graceful shutdown of PostgreSQL and Redis
+codeserver-infra-stop:
+	@echo "Stopping PostgreSQL..."
+	@LD_PRELOAD=$(CODE_SERVER_FAKE_ROOT_SO) pg_ctl -D $(CODE_SERVER_PG_DATA) stop -m fast 2>/dev/null || true
+	@echo "Stopping Redis..."
+	@redis-cli -p $(CODE_SERVER_REDIS_PORT) shutdown nosave 2>/dev/null || true
+	@echo "Infrastructure stopped"
+
+# Minimal dev sandbox — no Docker, no isolation, dev only.
+# Implements POST /v1/sandbox/run so workflow code nodes work locally.
+codeserver-start-sandbox:
+	@if curl -sf http://localhost:$(CODE_SERVER_SANDBOX_PORT)/health >/dev/null 2>&1; then \
+		echo "Dev sandbox is already running on port $(CODE_SERVER_SANDBOX_PORT)"; \
+	else \
+		SANDBOX_PORT=$(CODE_SERVER_SANDBOX_PORT) \
+		SANDBOX_API_KEY=$(CODE_SERVER_SANDBOX_API_KEY) \
+		$(CODE_SERVER_PYTHON) scripts/dev/sandbox-server.py; \
+	fi
 
 # Help target
 help:
@@ -347,9 +417,16 @@ help:
 	@echo "  make codeserver-redis-start     - Start Redis on localhost:6379"
 	@echo "  make codeserver-env             - Write api/.env and web/.env.local"
 	@echo "  make codeserver-upgrade-db      - Run API database migrations"
-	@echo "  make codeserver-start-api       - Start API"
-	@echo "  make codeserver-start-worker    - Start Celery worker"
-	@echo "  make codeserver-start-web       - Start Web"
+	@echo "  make codeserver-setup           - First-time setup: init PG, create DB, write envs, migrate"
+	@echo "  make codeserver-infra-start     - Daily startup: start PostgreSQL + Redis (idempotent)"
+	@echo "  make codeserver-infra-stop      - Gracefully stop PostgreSQL + Redis"
+	@echo "  make codeserver-start-all       - Start API + worker + web + sandbox in background (combined log)"
+	@echo "  make codeserver-stop-all        - Stop all services started by codeserver-start-all"
+	@echo "  make codeserver-logs            - Tail combined log (Ctrl-C to exit)"
+	@echo "  make codeserver-start-api       - Start API  (foreground, terminal 1)"
+	@echo "  make codeserver-start-worker    - Start Celery worker  (foreground, terminal 2)"
+	@echo "  make codeserver-start-web       - Start Web  (foreground, terminal 3)"
+	@echo "  make codeserver-start-sandbox   - Start dev sandbox  (foreground, terminal 4, optional)"
 
 # Phony targets
-.PHONY: build-web build-api push-web push-api build-all push-all build-push-all dev-setup prepare-docker prepare-web prepare-api dev-clean help format check lint api-contract-lint type-check test test-all codeserver-install-project codeserver-fake-root codeserver-postgres-init codeserver-postgres-start codeserver-postgres-createdb codeserver-redis-start codeserver-env codeserver-upgrade-db codeserver-start-api codeserver-start-worker codeserver-start-web
+.PHONY: build-web build-api push-web push-api build-all push-all build-push-all dev-setup prepare-docker prepare-web prepare-api dev-clean help format check lint api-contract-lint type-check test test-all codeserver-install-project codeserver-fake-root codeserver-postgres-init codeserver-postgres-start codeserver-postgres-createdb codeserver-redis-start codeserver-env codeserver-upgrade-db codeserver-setup codeserver-infra-start codeserver-infra-stop codeserver-start-all codeserver-stop-all codeserver-logs codeserver-start-api codeserver-start-worker codeserver-start-web codeserver-start-sandbox
